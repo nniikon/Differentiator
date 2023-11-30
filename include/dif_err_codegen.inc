@@ -1,0 +1,7 @@
+DEF_DIF_ERR(NO,             "no error occurred"             )
+DEF_DIF_ERR(NULLPTR_PASSED, "nullptr passed to the function")
+DEF_DIF_ERR(BAD_MEM_ALLOC,  "failed to allocate memory"     )
+DEF_DIF_ERR(BAD_FOPEN,      "failed to open the file"       )
+DEF_DIF_ERR(UNEXPECTED,     "unexpected error"              )
+DEF_DIF_ERR(NO_CTOR,        "constructor wasn't evoked"     )
+DEF_DIF_ERR(TREE,           "binary tree error"             )

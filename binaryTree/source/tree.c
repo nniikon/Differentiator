@@ -228,6 +228,7 @@ static TreeError treeCpy_recursive(Tree* dstTree, const TreeNode* src,
     *dst = treeCreateEmptyNode(dstTree);
     if (*dst == NULL)
         return TREE_ERROR_BAD_MEM_ALLOC;
+    (*dst)->data = src->data;
 
     TreeError
     err = treeCpy_recursive(dstTree, src->leftBranch,  &((*dst)->leftBranch));
