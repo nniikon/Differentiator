@@ -68,24 +68,24 @@ static void akinatorPrintNodes(Dif* dif, TreeNode* node, FILE* dotFile)
     // QUESTION: FIXME: cringe?
     const char* const valueMaskLiteral = valueMask;
 
-    log("\"%p\" [shape = Mrecord, style = filled, fillcolor = \"%s\", color = \"%s\", ", 
+    log("\"%p\" [shape = circle, style = filled, fixedsize = 1, width = 1, height = 1, fillcolor = \"%s\", color = \"%s\", ", 
                     node, color, DIF_SCD_COLOR);
-    log("label = \"{adress: %p | DATA: ", node);
+    log("label = \"");
 
     log("%s", valueStr);
 
-    log(" | {<leftPrt> LEFT: %p | <rightPrt> RIGHT: %p}}\"];\n",
-                                        node->leftBranch, node->rightBranch);
+    log("\"];\n");
+
     if (node->leftBranch != nullptr)
     {
         akinatorPrintNodes(dif, node->leftBranch, dotFile);
-        log("\"%p\":<leftPrt> -> \"%p\"[color = \"%s\", weight = 1]\n",
+        log("\"%p\" -> \"%p\"[color = \"%s\", weight = 1]\n",
                                         node, node->leftBranch, DIF_SCD_COLOR);
     }
     if (node->rightBranch != nullptr)
     {
         akinatorPrintNodes(dif, node->rightBranch, dotFile);
-        log("\"%p\":<rightPrt> -> \"%p\"[color = \"%s\", weight = 1]\n",
+        log("\"%p\" -> \"%p\"[color = \"%s\", weight = 1]\n",
                                         node, node->rightBranch, DIF_SCD_COLOR);
     }
     LOG_FUNC_END(dif->logFile);
@@ -118,6 +118,9 @@ DifError difGraphDump(Dif* dif, Tree* tree)
         fclose(dotFile);
         DIF_RETURN_LOG_ERROR(DIF_ERR_BAD_FOPEN, dif);
     }
+
+    LOGF(dif->logFile, "open %s success\n", fileBuffer);
+
     log("digraph G{\n"
         "rankdir = TB;\n"
         "bgcolor = \"%s\";\n", DIF_BGR_COLOR);
