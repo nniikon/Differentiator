@@ -1,6 +1,14 @@
 #ifndef TREE_CFG_H_
 #define TREE_CFG_H_
 
+enum DifOprType
+{
+    DIF_OPR_ADD = 0,
+    DIF_OPR_SUB = 1,
+    DIF_OPR_MUL = 2,
+    DIF_OPR_DIV = 3,
+};
+
 struct DifVar
 {
     const char* name;
@@ -16,9 +24,9 @@ enum DifNodeType
 
 union DifNodeValue
 {
-    double  num;
-    DifVar* var;
-    char    opr;
+    double     num;
+    DifVar*    var;
+    DifOprType opr;
 };
 
 struct DifNode

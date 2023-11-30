@@ -11,7 +11,9 @@ void getCurrentTimeStr(char* str, size_t bufferSize);
     do                                                                           \
     {                                                                            \
         if (file != NULL)                                                        \
+        {                                                                        \
             fprintf(file, "<font color=" #color ">" str "</font>", __VA_ARGS__); \
+        }                                                                        \
     } while (0)
 
     #define LOGF_COLOR(file, color, str, ...)                                    \

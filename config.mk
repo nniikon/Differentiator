@@ -9,6 +9,7 @@ CFLAGS = -O0 -Wall -Waggressive-loop-optimizations \
 -Wsuggest-final-methods -Wsuggest-final-types \
 -Wswitch-default -Wswitch-enum -Wsync-nand -Wundef -Wunreachable-code \
 -Wunused -Wvariadic-macros \
+-Wno-nonnull \
 -Wno-missing-field-initializers -Wno-narrowing \
 -Wno-varargs -Wstack-protector -fcheck-new \
 -fstack-protector -fstrict-overflow -flto-odr-type-merging \

@@ -9,6 +9,7 @@
 #include "../include/dif.h"
 #include "../include/dif_cfg.h"
 #include "../include/dif_tree_cfg.h"
+#include "../include/dif_operations.h"
 
 const int INT_MAX_LENGTH = 10;
 
@@ -56,7 +57,7 @@ static void akinatorPrintNodes(Dif* dif, TreeNode* node, FILE* dotFile)
 
         case DIF_NODE_TYPE_OPR:
             color = DIF_OPR_COLOR;
-            snprintf(valueStr, valueBufferSize, "%c", node->data.value.opr);
+            snprintf(valueStr, valueBufferSize, "%s", DIF_OPERATIONS[(int)node->data.value.opr].name);
             break;
 
         case DIF_NODE_TYPE_VAR:
@@ -98,10 +99,10 @@ DifError difGraphDump(Dif* dif, Tree* tree)
     LOG_FUNC_START(dif->logFile);
 
     if (dif == nullptr)
-        DIF_RETURN_LOG_ERROR(DIF_ERR_NULLPTR_PASSED, dif);
+        DIF_RETURN_LOG_ERROR(DIF_ERR_NULLPTR_PASSED, dif->logFile);
 
     if (dif->logFile == nullptr)
-        DIF_RETURN_LOG(DIF_ERR_NO, dif);
+        DIF_RETURN_LOG(DIF_ERR_NO, dif->logFile);
 
     difMakeLogdir();
 
@@ -116,7 +117,7 @@ DifError difGraphDump(Dif* dif, Tree* tree)
     if (dotFile == nullptr)
     {
         fclose(dotFile);
-        DIF_RETURN_LOG_ERROR(DIF_ERR_BAD_FOPEN, dif);
+        DIF_RETURN_LOG_ERROR(DIF_ERR_BAD_FOPEN, dif->logFile);
     }
 
     LOGF(dif->logFile, "open %s success\n", fileBuffer);

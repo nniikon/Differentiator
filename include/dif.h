@@ -23,22 +23,27 @@ DifError difCtor(Dif* dif, FILE* logFile);
 
 const char* difGetErrorMsg(DifError err);
 
-#define DIF_RETURN_LOG(err, dif)                                              \
+DifError difEvalTree(Tree* tree, double* output);
+DifError difDifTree (Tree* tree);
+
+TreeNode* difDifNode_recursive(Tree* tree, TreeNode* node);
+
+#define DIF_RETURN_LOG(err, logFile)                                          \
     do {                                                                      \
-        LOG_FUNC_END(dif->logFile);                                           \
+        LOG_FUNC_END(logFile);                                                \
         return err;                                                           \
     } while (0)
 
-#define DIF_RETURN_LOG_ERROR(err, dif)                                        \
+#define DIF_RETURN_LOG_ERROR(err, logFile)                                    \
     do {                                                                      \
-        LOGF_ERR(dif->logFile, "%s", difGetErrorMsg(err));                    \
-        DIF_RETURN_LOG(err, dif);                                             \
+        LOGF_ERR(logFile, "%s", difGetErrorMsg(err));                         \
+        DIF_RETURN_LOG(err, logFile);                                         \
     } while (0)
 
-#define DIF_RETURN_LOG_WARNING(err, dif)                                      \
+#define DIF_RETURN_LOG_WARNING(err, logFile)                                  \
     do {                                                                      \
-        LOGF_WARNING(dif->logFile, "%s", difGetErrorMsg(err));                \
-        DIF_RETURN_LOG(err, dif);                                             \
+        LOGF_WRN(logFile, "%s", difGetErrorMsg(err));                         \
+        DIF_RETURN_LOG(err, logFile);                                         \
     } while (0)
 
 #endif

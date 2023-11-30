@@ -24,36 +24,38 @@ int main()
     Tree dst = {};
     treeCpy(&tree, &dst);
 
+    difDifTree  (&dst);
     difGraphDump(&dif, &dst);
+
     treeDtor(&tree);
     treeDtor(&dst);
 
     fclose(file);
 }
 
+DifVar var =
+    {.name = "x",
+     .value = 1.0 };
+
 
 void createTestTree(Tree* tree, FILE* dumpFile)
 {
     treeCtor(tree, dumpFile);
 
-    treeElem_t elem = 
-        {.value = '/', 
-         .type  = DIF_NODE_TYPE_OPR};
-
-    DifVar var =
-        {.name = "x",
-         .value = 1.0 };
+    treeElem_t elem = {};
+    elem.type = DIF_NODE_TYPE_OPR;
+    elem.value.opr = DIF_OPR_DIV;
 
     elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = '/';
+    elem.value.opr = DIF_OPR_ADD;
     tree->rootBranch->data = elem;
 
     elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = '+';
+    elem.value.opr = DIF_OPR_ADD;
     treeInsertRight(tree, tree->rootBranch, elem);
 
     elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = '-';
+    elem.value.opr = DIF_OPR_SUB;
     treeInsertLeft (tree, tree->rootBranch, elem);
 
     elem.type = DIF_NODE_TYPE_NUM;
@@ -64,7 +66,8 @@ void createTestTree(Tree* tree, FILE* dumpFile)
 
     elem.value.num = 3;
     treeInsertLeft (tree, tree->rootBranch->rightBranch, elem);
-    elem.value.num = 4;
+    elem.type = DIF_NODE_TYPE_VAR;
+    elem.value.var = &var;
     treeInsertRight(tree, tree->rootBranch->rightBranch, elem);
 
 }
