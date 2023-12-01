@@ -44,7 +44,6 @@ static void akinatorPrintNodes(Dif* dif, TreeNode* node, FILE* dotFile)
 {
     LOG_FUNC_START(dif->logFile);
     const char* color = nullptr;
-    const char* valueMask  = nullptr;
 
     const int valueBufferSize = 15;
     char valueStr[valueBufferSize] = {};
@@ -67,7 +66,6 @@ static void akinatorPrintNodes(Dif* dif, TreeNode* node, FILE* dotFile)
         default: assert(0);
     };
     // QUESTION: FIXME: cringe?
-    const char* const valueMaskLiteral = valueMask;
 
     log("\"%p\" [shape = circle, style = filled, fixedsize = 1, width = 1, height = 1, fillcolor = \"%s\", color = \"%s\", ", 
                     node, color, DIF_SCD_COLOR);

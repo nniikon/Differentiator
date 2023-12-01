@@ -10,25 +10,21 @@ int main()
     FILE* file = fopen("logs.html", "w");
     if (file == nullptr)
         return -1;
-    fprintf(file, "<pre>");
+    fprintf(file, "<pre style=\"background: #000000;color:#000000;\">");
     setvbuf(file, NULL, _IONBF, 0);
 
     Dif dif = {};
-    Tree tree = {};
     difCtor(&dif, file);
 
+    Tree tree = {};
     createTestTree(&tree, file);
 
     difGraphDump(&dif, &tree);
 
-    Tree dst = {};
-    treeCpy(&tree, &dst);
-
-    difDifTree  (&dst);
-    difGraphDump(&dif, &dst);
+    difDifTree  (&tree);
+    difGraphDump(&dif, &tree);
 
     treeDtor(&tree);
-    treeDtor(&dst);
 
     fclose(file);
 }
@@ -47,7 +43,7 @@ void createTestTree(Tree* tree, FILE* dumpFile)
     elem.value.opr = DIF_OPR_DIV;
 
     elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = DIF_OPR_ADD;
+    elem.value.opr = DIF_OPR_MUL;
     tree->rootBranch->data = elem;
 
     elem.type = DIF_NODE_TYPE_OPR;

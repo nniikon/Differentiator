@@ -30,7 +30,7 @@ void getCurrentTimeStr(char* str, size_t bufferSize);
         }                                                                        \
     } while (0)
 
-    #define LOGF(file, str, ...)     LOGF_COLOR(file, black,  "\t"        str, __VA_ARGS__)
+    #define LOGF(file, str, ...)     LOGF_COLOR(file, white,  "\t"        str, __VA_ARGS__)
     #define LOGF_ERR(file, str, ...) LOGF_COLOR(file, red,    "ERROR! "   str, __VA_ARGS__)
     #define LOGF_WRN(file, str, ...) LOGF_COLOR(file, orange, "WARNING! " str, __VA_ARGS__)
 

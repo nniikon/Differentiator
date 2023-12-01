@@ -35,7 +35,7 @@ DifError difCtor(Dif* dif, FILE* logFile)
 static double difEvalNode_recursive(Tree* tree, TreeNode* node)
 {
     LOG_FUNC_START(tree->debugInfo.dumpFile);
-\
+
     if (node->data.type == DIF_NODE_TYPE_NUM)
     {
         LOGF(tree->debugInfo.dumpFile, "returning: %lg\n", node->data.value.num);
@@ -72,6 +72,7 @@ DifError difEvalTree(Tree* tree, double* output)
 
 TreeNode* difDifNode_recursive(Tree* tree, TreeNode* node)
 {
+    LOG_FUNC_START(tree->debugInfo.dumpFile);
     if (node->data.type == DIF_NODE_TYPE_NUM)
     {
         return treeCreateNode(tree, nullptr, nullptr, 
@@ -84,6 +85,9 @@ TreeNode* difDifNode_recursive(Tree* tree, TreeNode* node)
                         node->parentBranch, {1, DIF_NODE_TYPE_NUM});
     }
 
+    LOGF(tree->debugInfo.dumpFile, "The operation is %s\n",
+                                    DIF_OPERATIONS[(int)node->data.value.opr].name);
+    LOG_FUNC_END(tree->debugInfo.dumpFile);
     return DIF_OPERATIONS[(int)node->data.value.opr].dif(tree, node);
 }
 

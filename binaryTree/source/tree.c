@@ -77,7 +77,7 @@ TreeError treeCtor(Tree* tree, FILE* dumpFile)
 	{
 		tree->debugInfo.dumpIndex = (unsigned int) -1;
 	}
-	tree->debugInfo.dumpFile = NULL;
+	tree->debugInfo.dumpFile = dumpFile;
 
 
     int dynArrErr = dynArrCtor(&tree->memBuffer, sizeof(TreeNode));
