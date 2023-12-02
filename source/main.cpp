@@ -2,6 +2,7 @@
 #include "../binaryTree/include/tree.h"
 #include "../include/dif.h"
 #include "../include/dif_graphDump.h"
+#include "../treeParser/treeParser.h"
 
 void createTestTree1(Tree* tree, FILE* dumpFile);
 void createTestTree2(Tree* tree, FILE* dumpFile);
@@ -9,30 +10,39 @@ void createTestTree3(Tree* tree, FILE* dumpFile);
 
 int main()
 {
-    FILE* file = fopen("logs.html", "w");
-    if (file == nullptr)
+    FILE* logFile = fopen("logs.html", "w");
+    if (logFile == nullptr)
         return -1;
-    fprintf(file, "<pre style=\"background: #000000;color:#000000;\">");
-    setvbuf(file, NULL, _IONBF, 0);
+    fprintf(logFile, "<pre style=\"background: #000000;color:#000000;\">");
+    setvbuf(logFile, NULL, _IONBF, 0);
 
     Dif dif = {};
-    difCtor(&dif, file);
+    difCtor(&dif, logFile);
 
     Tree tree = {};
-    createTestTree2(&tree, file);
+    createTestTree2(&tree, logFile);
 
     difGraphDump(&dif, &tree);
 
-    difDifTree(&tree);
+    difDifTree        (&tree);
 
-    treeSetParents         (&tree);
-    difSimplify(&tree);
+    treeSetParents    (&tree);
+    difSimplify       (&tree);
     difGraphDump(&dif, &tree);
 
-    difGraphDump(&dif, &tree);
+    FILE* databaseFile = fopen("db.dif", "w");
+    if (databaseFile == nullptr)
+    {
+        fclose(logFile);
+        return -1;
+    }
+
+    parserPutTreeToFile(&tree, databaseFile);
+    
+
     treeDtor(&tree);
 
-    fclose(file);
+    fclose(logFile);
 }
 
 DifVar x =
