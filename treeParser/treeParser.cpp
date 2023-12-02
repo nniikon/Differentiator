@@ -29,13 +29,16 @@ static void parserPutNodeToFile_recursive(Tree* tree, TreeNode* node, FILE* file
 {
     if (!node)
         return;
-    fprintf(file, "(");
+
+    if (node->data.type == DIF_NODE_TYPE_OPR)
+        fprintf(file, "(");
 
     parserPutNodeToFile_recursive(tree, node->leftBranch , file);
     parserPutNodeNameToFile      (tree, node             , file);
     parserPutNodeToFile_recursive(tree, node->rightBranch, file);
 
-    fprintf(file, ")");
+    if (node->data.type == DIF_NODE_TYPE_OPR)
+        fprintf(file, ")");
 }
 
 
