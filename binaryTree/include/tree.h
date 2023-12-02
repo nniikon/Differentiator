@@ -53,4 +53,6 @@ TreeNode* treeCreateEmptyNode(Tree* tree);
 
 TreeError treeCpy(const Tree* src, Tree* dst);
 
+void treeSetParents(Tree* tree);
+
 #endif // TREE_H_

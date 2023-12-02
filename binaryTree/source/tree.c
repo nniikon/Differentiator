@@ -163,6 +163,7 @@ static TreeError treeInsert(Tree* tree, TreeNode* node, TreeDirection dir, treeE
     if (newNode == NULL)
         DUMP_RETURN_ERROR(TREE_ERROR_BAD_MEM_ALLOC);
     newNode->data = data;
+    newNode->parentBranch = node;
     tree->size++;
 
     switch(dir)
@@ -257,6 +258,26 @@ TreeError treeCpy(const Tree* tree, Tree* dst)
 }
 
 
+static void treeSetParents_recursive(TreeNode* node)
+{
+    if (node->leftBranch != NULL)
+    {
+        node->leftBranch->parentBranch = node;
+        treeSetParents_recursive(node->leftBranch);
+    }
+
+    if (node->rightBranch != NULL)
+    {
+        node->rightBranch->parentBranch = node;
+        treeSetParents_recursive(node->rightBranch);
+    }
+}
+
+
+void treeSetParents(Tree* tree)
+{
+    treeSetParents_recursive(tree->rootBranch);
+}
 
 
 
