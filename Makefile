@@ -5,6 +5,7 @@ all:
 	@$(MAKE) -C ./common/memAllocations
 	@$(MAKE) -C ./binaryTree/source
 	@$(MAKE) -C ./source
+	@$(MAKE) -C ./treeParser
 	@$(GXX) $(CFLAGS) -o $(BUILD_DIR)/$(EXEC_NAME) $(BUILD_DIR)/*.o
 
 clean:
