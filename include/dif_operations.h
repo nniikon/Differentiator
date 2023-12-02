@@ -4,17 +4,12 @@
 #include "dif_tree_cfg.h"
 #include "../binaryTree/include/tree.h"
 
-double    difEvl_add(TreeNode* node, double left, double right);
-TreeNode* difDif_add(Tree* tree, TreeNode* node);
-
-double    difEvl_sub(TreeNode* node, double left, double right);
-TreeNode* difDif_sub(Tree* tree, TreeNode* node);
-
-double    difEvl_mul(TreeNode* node, double left, double right);
-TreeNode* difDif_mul(Tree* tree, TreeNode* node);
-
-double    difEvl_div(TreeNode* node, double left, double right);
-TreeNode* difDif_div(Tree* tree, TreeNode* node);
+#define DEF_DIF_OPR(opr, chr)                                                 \
+    double    difEvl_ ## opr (TreeNode* node, double left, double right);          \
+    TreeNode* difDif_ ## opr (Tree* tree, TreeNode* node);                         \
+    TreeNode* difSmp_ ## opr (Tree* tree, TreeNode* node);
+#include "dif_operations_codegen.inc"
+#undef DEF_DIF_OPR
 
 struct DifOpr
 {
@@ -22,14 +17,14 @@ struct DifOpr
     const char* name; 
     double    (*eval)(TreeNode* node, double left, double right);
     TreeNode* (*dif )(Tree* tree, TreeNode* node);
+    TreeNode* (*smp )(Tree* tree, TreeNode* node);
 };
 
 const DifOpr DIF_OPERATIONS[]
 {
-    {DIF_OPR_ADD, "+", difEvl_add, difDif_add},
-    {DIF_OPR_SUB, "-", difEvl_sub, difDif_sub},
-    {DIF_OPR_MUL, "*", difEvl_mul, difDif_mul},
-    {DIF_OPR_DIV, "/", difEvl_div, difDif_div},
+    #define DEF_DIF_OPR(opr, chr) {DIF_OPR_ ## opr, chr, difEvl_ ## opr, difDif_ ## opr, difSmp_ ## opr},
+    #include "dif_operations_codegen.inc"
+    #undef  DEF_DIF_OPR
 };
 
 

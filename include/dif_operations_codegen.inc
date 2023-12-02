@@ -1,0 +1,7 @@
+DEF_DIF_OPR(ADD, "+")
+DEF_DIF_OPR(SUB, "-")
+DEF_DIF_OPR(DIV, "/")
+DEF_DIF_OPR(MUL, "*")
+DEF_DIF_OPR(LOG, "log")
+DEF_DIF_OPR(LN,  "ln")
+DEF_DIF_OPR(POW, "^")

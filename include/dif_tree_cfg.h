@@ -3,10 +3,9 @@
 
 enum DifOprType
 {
-    DIF_OPR_ADD = 0,
-    DIF_OPR_SUB = 1,
-    DIF_OPR_MUL = 2,
-    DIF_OPR_DIV = 3,
+    #define DEF_DIF_OPR(opr, chr) DIF_OPR_ ## opr,
+    #include "dif_operations_codegen.inc"
+    #undef DEF_DIF_OPR
 };
 
 struct DifVar
@@ -33,6 +32,7 @@ struct DifNode
 {
     DifNodeValue value;
     DifNodeType  type;
+    bool isConst;
 };
 
 typedef DifNode treeElem_t;

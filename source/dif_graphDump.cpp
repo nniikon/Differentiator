@@ -67,13 +67,14 @@ static void akinatorPrintNodes(Dif* dif, TreeNode* node, FILE* dotFile)
     };
     // QUESTION: FIXME: cringe?
 
-    log("\"%p\" [shape = circle, style = filled, fixedsize = 1, width = 1, height = 1, fillcolor = \"%s\", color = \"%s\", ", 
+    log("\"%p\" [shape = Mrecord, style = filled, fillcolor = \"%s\", color = \"%s\", ", 
                     node, color, DIF_SCD_COLOR);
-    log("label = \"");
+    log("label = \"{adr: %p | p: %p | {l: %p | r %p} | {isConst %d} | ",
+                    node, node->parentBranch, node->leftBranch, node->rightBranch, node->data.isConst);
 
     log("%s", valueStr);
 
-    log("\"];\n");
+    log("}\"];\n");
 
     if (node->leftBranch != nullptr)
     {

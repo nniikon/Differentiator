@@ -7,7 +7,6 @@
 
 struct Dif
 {
-    Tree* tree;
     FILE* logFile;
     int dumpIndex;
 };
@@ -27,6 +26,10 @@ DifError difEvalTree(Tree* tree, double* output);
 DifError difDifTree (Tree* tree);
 
 TreeNode* difDifNode_recursive(Tree* tree, TreeNode* node);
+
+bool difSimplifyConsts      (Tree* tree);
+bool difSimplifyNeutralElems(Tree* tree);
+void difSimplify            (Tree* tree);
 
 #define DIF_RETURN_LOG(err, logFile)                                          \
     do {                                                                      \
