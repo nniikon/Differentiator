@@ -151,7 +151,7 @@ FUNC_SMP(LN)
 
 FUNC_EVL(LOG)
 {
-    return log(left);
+    return log10(left);
 }
 
 FUNC_DIF(LOG)

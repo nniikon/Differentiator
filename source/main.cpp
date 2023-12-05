@@ -3,6 +3,7 @@
 #include "../include/dif.h"
 #include "../include/dif_graphDump.h"
 #include "../treeParser/treeParser.h"
+#include "../common/fileToBuffer/fileToBuffer.h"
 
 void createTestTree1(Tree* tree, FILE* dumpFile);
 void createTestTree2(Tree* tree, FILE* dumpFile);
@@ -15,34 +16,26 @@ int main()
         return -1;
     fprintf(logFile, "<pre style=\"background: #000000;color:#000000;\">");
     setvbuf(logFile, NULL, _IONBF, 0);
-
-    Dif dif = {};
-    difCtor(&dif, logFile);
-
-    Tree tree = {};
-    createTestTree2(&tree, logFile);
-
-    difGraphDump(&dif, &tree);
-
-    difDifTree        (&tree);
-
-    treeSetParents    (&tree);
-    difSimplify       (&tree);
-    difGraphDump(&dif, &tree);
-
-    FILE* databaseFile = fopen("db.dif", "w");
+    
+    // TEST PARSING.
+    FILE* databaseFile = fopen("db.dif", "r");
     if (databaseFile == nullptr)
     {
         fclose(logFile);
         return -1;
     }
 
-    parserPutTreeToFile(&tree, databaseFile);
-    
+    Tree tree = {};
+    treeCtor(&tree, logFile);
 
-    treeDtor(&tree);
+    Dif dif = {};
+    difCtor(&dif, logFile);
 
-    fclose(logFile);
+    parserLoadTreeFromFile(&tree, databaseFile, logFile);
+    difGraphDump(&dif, &tree);
+    double result = 0;
+    difEvalTree(&tree, &result);
+    fprintf(stderr, "%g\n", result);
 }
 
 DifVar x =

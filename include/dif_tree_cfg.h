@@ -3,9 +3,10 @@
 
 enum DifOprType
 {
-    #define DEF_DIF_OPR(opr, chr) DIF_OPR_ ## opr,
+    #define DEF_DIF_OPR(opr, chr, ord   ) DIF_OPR_ ## opr,
     #include "dif_operations_codegen.inc"
     #undef DEF_DIF_OPR
+    DIF_OPR_ERR = -1, // FIXME invalid
 };
 
 struct DifVar
@@ -26,7 +27,17 @@ union DifNodeValue
     double     num;
     DifVar*    var;
     DifOprType opr;
-};
+}; // FXIME put tot DifNode
+
+// struct A
+// {
+//     union
+//     {
+//         int x;
+//         double y;
+//     };
+// };
+
 
 struct DifNode
 {

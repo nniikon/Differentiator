@@ -73,7 +73,7 @@ DifError difEvalTree(Tree* tree, double* output)
 
 TreeNode* difDifNode_recursive(Tree* tree, TreeNode* node)
 {
-    LOG_FUNC_START(tree->debugInfo.dumpFile);
+    LOG_FUNC_START(tree->debugInfo.dumpFile); // FIXME SWITCH
     if (node->data.type == DIF_NODE_TYPE_NUM)
     {
         return treeCreateNode(tree, nullptr, nullptr, 
@@ -194,5 +194,4 @@ void difSimplify(Tree* tree)
     while (difSimplifyNeutralElems(tree) ||
            difSimplifyConsts      (tree))
         ;
-    
 }
