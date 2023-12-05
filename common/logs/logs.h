@@ -7,12 +7,31 @@
 void getCurrentTimeStr(char* str, size_t bufferSize);
 
 #ifndef NLOG
+    #define LOG_START_COLOR(file, color)                                         \
+    do                                                                           \
+    {                                                                            \
+        if (file != NULL)                                                        \
+        {                                                                        \
+            fprintf(file, "<font color=" #color ">");                            \
+        }                                                                        \
+    } while (0)
+
     #define LOG_COLOR(file, color, str, ...)                                     \
     do                                                                           \
     {                                                                            \
         if (file != NULL)                                                        \
         {                                                                        \
-            fprintf(file, "<font color=" #color ">" str "</font>", __VA_ARGS__); \
+            LOG_START_COLOR(file, color);                                        \
+            fprintf(file, str, __VA_ARGS__);                                     \
+        }                                                                        \
+    } while (0)
+
+    #define LOG_END(file)                                                        \
+    do                                                                           \
+    {                                                                            \
+        if (file != NULL)                                                        \
+        {                                                                        \
+            fprintf(file, "</font>");                                            \
         }                                                                        \
     } while (0)
 
@@ -27,6 +46,7 @@ void getCurrentTimeStr(char* str, size_t bufferSize);
             LOG_COLOR(file, lightgreen, "[%s]{%s(%-3d)}:",                       \
                                 buffer_log, __FILE__, __LINE__);                 \
             LOG_COLOR(file, color, str, __VA_ARGS__);                            \
+            LOG_END(file);                                                       \
         }                                                                        \
     } while (0)
 
