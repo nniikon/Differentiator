@@ -6,6 +6,8 @@ all:
 	@$(MAKE) -C ./binaryTree/source
 	@$(MAKE) -C ./source
 	@$(MAKE) -C ./treeParser
+	@$(MAKE) -C ./common/fileToBuffer
+	@$(MAKE) -C ./common/stack
 	@$(GXX) $(CFLAGS) -o $(BUILD_DIR)/$(EXEC_NAME) $(BUILD_DIR)/*.o
 
 clean:
