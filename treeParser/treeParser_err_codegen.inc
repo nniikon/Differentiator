@@ -1,0 +1,7 @@
+DEF_PARSER_ERR(NO,               "no error occurred"             )
+DEF_PARSER_ERR(NULLPTR_PASSED,   "nullptr passed to the function")
+DEF_PARSER_ERR(UNEXPECTED,       "unexpected error"              )
+DEF_PARSER_ERR(TREE,             "binary tree error"             )
+DEF_PARSER_ERR(MEM_ALLOC,        "failed to allocate memory"     )
+DEF_PARSER_ERR(STACK,            "stack error"                   )
+DEF_PARSER_ERR(FILE_TO_BUFFER,   "failed to put file to buffer"  )
