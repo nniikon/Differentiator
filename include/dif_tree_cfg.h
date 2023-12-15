@@ -3,16 +3,19 @@
 
 enum DifOprType
 {
-    #define DEF_DIF_OPR(opr, chr, ord   ) DIF_OPR_ ## opr,
+    #define DEF_DIF_OPR(opr, ...) DIF_OPR_ ## opr,
     #include "dif_operations_codegen.inc"
     #undef DEF_DIF_OPR
-    DIF_OPR_ERR = -1, // FIXME invalid
+
+    DIF_OPR_END,
+    DIF_OPR_INV = -1, // FIXME invalid
 };
 
 struct DifVar
 {
     const char* name;
-    double      value;
+    double value;
+    int length;
 };
 
 enum DifNodeType
@@ -37,7 +40,6 @@ union DifNodeValue
 //         double y;
 //     };
 // };
-
 
 struct DifNode
 {

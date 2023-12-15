@@ -1,123 +1,234 @@
+#include <assert.h>
 #include "../common/logs/logs.h"
 #include "../binaryTree/include/tree.h"
 #include "../include/dif.h"
 #include "../include/dif_graphDump.h"
 #include "../treeParser/treeParser.h"
 #include "../common/fileToBuffer/fileToBuffer.h"
+#include "../include/dif_latexLogs.h"
 
-void createTestTree1(Tree* tree, FILE* dumpFile);
-void createTestTree2(Tree* tree, FILE* dumpFile);
-void createTestTree3(Tree* tree, FILE* dumpFile);
+const char LOGS_FILE[]      = "logs.html";
+const char DATA_FILE[]      = "db.dif";
+const char LATEX_DIR[]      = "./tmp/tmp.tex";
+const char LATEX_PDF_NAME[] = "./difLogs";
+const char EQUATIONS_DIR[]  = "./tmp/dif_equations";
+
+DifError Taylor(Dif* dif, Tree* tree, int nGraphs);
+
+static FILE* openLogFile(const char* logFileName);
+
+DifError differentiate(Dif* dif, Tree* tree);
 
 int main()
 {
-    FILE* logFile = fopen("logs.html", "w");
-    if (logFile == nullptr)
-        return -1;
-    fprintf(logFile, "<pre style=\"background: #000000;color:#000000;\">");
-    setvbuf(logFile, NULL, _IONBF, 0);
-    
-    // TEST PARSING.
-    FILE* databaseFile = fopen("db.dif", "r");
-    if (databaseFile == nullptr)
+    TreeError   errTree   = TREE_ERROR_NO;
+    DifError    errCode   =    DIF_ERR_NO;
+    ParserError errParser = PARSER_ERR_NO;
+
+    FILE* logFile       = nullptr;
+    FILE* texFile       = nullptr;
+    FILE* databaseFile  = nullptr;
+
+    Tree   tree   = {};
+    Dif    dif    = {};
+    Parser parser = {};
+
+    size_t inputSize = 0ul;
+    char* input = nullptr;
+
+    logFile = openLogFile(LOGS_FILE);
+    if (!logFile)
     {
-        fclose(logFile);
-        return -1;
+        errCode = DIF_ERR_BAD_FOPEN;
+        goto ReturnOpenLogFileFailure;
     }
 
-    Tree tree = {};
-    treeCtor(&tree, logFile);
+    texFile = difLatexOpenFile(LATEX_DIR);
+    if (!texFile)
+    {
+        errCode = DIF_ERR_BAD_FOPEN;
+        goto ReturnOpenTexFileFailure;
+    }
 
-    Dif dif = {};
-    difCtor(&dif, logFile);
+    databaseFile = fopen(DATA_FILE, "r");
+    if (!databaseFile)
+    {
+        errCode = DIF_ERR_BAD_FOPEN;
+        goto ReturnOpenDatabaseFileFailure;
+    }
 
-    parserLoadTreeFromFile(&tree, databaseFile, logFile);
-    difGraphDump(&dif, &tree);
-    double result = 0;
-    difEvalTree(&tree, &result);
-    fprintf(stderr, "%g\n", result);
+    errTree = treeCtor(&tree, logFile);
+    if (errTree)
+    {
+        errCode = DIF_ERR_TREE;
+        goto ReturnTreeCtorFailure;
+    }
+
+    errCode = difCtor(&dif, logFile, texFile);
+    if (errCode)
+    {
+        goto ReturnDifCtorFailure;
+    }
+
+    errParser = parserCtor(&parser, logFile);
+    if (errParser)
+    {
+        errCode = DIF_ERR_PARSER;
+        goto ReturnParserCtorFailure;
+    }
+
+    input = putFileToBuffer(&inputSize, databaseFile);
+    if (!input)
+    {
+        errCode = DIF_ERR_BAD_MEM_ALLOC;
+        goto ReturnPutFileToBufferFailure;
+    }
+
+    // FIXME: add error checks
+    errParser = parserLoadTreeFromFile(&parser, &tree, input);
+    if (errParser)
+    {
+        errCode = DIF_ERR_PARSER;
+        goto ReturnCleanUp;
+    }
+
+    //Taylor(&dif, &tree, 9);
+    differentiate(&dif, &tree);
+
+    ReturnCleanUp:
+
+    free(input);
+    ReturnPutFileToBufferFailure:
+    parserDtor(&parser);
+    ReturnParserCtorFailure:
+    // difDtor(&dif);
+    ReturnDifCtorFailure:
+    treeDtor(&tree);
+    ReturnTreeCtorFailure:
+    fclose(databaseFile);
+    ReturnOpenDatabaseFileFailure:
+    difLatexCompileFile(texFile, LATEX_DIR, LATEX_PDF_NAME);
+    ReturnOpenTexFileFailure:
+    fclose(logFile);
+    ReturnOpenLogFileFailure:
+
+    return errCode;
 }
 
-DifVar x =
-    {.name = "x",
-     .value = 1.0 };
-
-void createTestTree1(Tree* tree, FILE* dumpFile)
+static int factorial(int n)
 {
-    treeCtor(tree, dumpFile);
+    assert(n >= 0);
 
-    treeElem_t elem = {};
-
-    elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = DIF_OPR_POW;
-    tree->rootBranch->data = elem;
-
-    elem.type = DIF_NODE_TYPE_VAR;
-    elem.value.var = &x;
-    treeInsertLeft (tree, tree->rootBranch, elem);
-
-    elem.type = DIF_NODE_TYPE_NUM;
-    elem.value.num = 2;
-    treeInsertRight(tree, tree->rootBranch, elem);
-
-    // elem.type = DIF_NODE_TYPE_NUM;
-    // elem.value.num = 2000;
-    // treeInsertLeft (tree, tree->rootBranch->leftBranch, elem);
-    // elem.value.num = 1000;
-    // treeInsertRight(tree, tree->rootBranch->leftBranch, elem);
-
-    // elem.value.num = 3;
-    // treeInsertLeft (tree, tree->rootBranch->rightBranch, elem);
-    // elem.type = DIF_NODE_TYPE_VAR;
-    // elem.value.var = &var;
-    // treeInsertRight(tree, tree->rootBranch->rightBranch, elem);
-
+    if (n == 0)
+        return 1;
+    else
+        return n * factorial(n - 1);
 }
 
 
-void createTestTree2(Tree* tree, FILE* dumpFile)
+DifError differentiate(Dif* dif, Tree* tree)
 {
-    treeCtor(tree, dumpFile);
-
-    treeElem_t elem = {};
-
-    elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = DIF_OPR_POW;
-    tree->rootBranch->data = elem;
-
-    elem.type = DIF_NODE_TYPE_VAR;
-    elem.value.var = &x;
-    treeInsertLeft (tree, tree->rootBranch, elem);
-
-    elem.type = DIF_NODE_TYPE_NUM;
-    elem.value.num = 1;
-    treeInsertRight(tree, tree->rootBranch, elem);
+    return difDifTreeDump(dif, tree);
 }
 
-void createTestTree3(Tree* tree, FILE* dumpFile)
+
+DifError Taylor(Dif* dif, Tree* tree, int nGraphs)
 {
-    treeCtor(tree, dumpFile);
+    Tree* diffedTrees = (Tree*) calloc(nGraphs, sizeof(Tree));
+    if (!diffedTrees)
+        return DIF_ERR_BAD_MEM_ALLOC;
 
-    treeElem_t elem = {};
+    double* diffedTreesValues = (double*) calloc(nGraphs, sizeof(double));
+    if (!diffedTreesValues)
+    {
+        free(diffedTrees);
+        return DIF_ERR_BAD_MEM_ALLOC;
+    }
 
-    elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = DIF_OPR_MUL;
-    tree->rootBranch->data = elem;
+    FILE* equationsFile = fopen(EQUATIONS_DIR, "w");
+    if (!equationsFile)
+    {
+        free(diffedTreesValues);
+        free(diffedTrees);
+        return DIF_ERR_BAD_FOPEN;
+    }
+    parserPutTreeToFile(tree, equationsFile);
+    fputc('\n', equationsFile);
 
-    elem.type = DIF_NODE_TYPE_OPR;
-    elem.value.opr = DIF_OPR_SUB;
-    tree->rootBranch->data = elem;
-    treeInsertLeft (tree, tree->rootBranch, elem);
+    DifError   difErr = DIF_ERR_NO; 
+    TreeError treeErr = treeCpy(tree, &diffedTrees[0]);
+    if (treeErr)
+    {
+        free(diffedTreesValues);
+        fclose(equationsFile);
+        free(diffedTrees);
+        return DIF_ERR_TREE;
+    }
 
-    elem.type = DIF_NODE_TYPE_VAR;
-    elem.value.var = &x;
-    treeInsertRight(tree, tree->rootBranch, elem);
+    // Calculate all diffed trees
+    for (int n = 1; n < nGraphs; n++)
+    {
+        treeErr = treeCpy(&diffedTrees[n - 1], &diffedTrees[n]);
+        if (treeErr)
+        {
+            difErr = DIF_ERR_TREE;
+            goto ReturnCleanUp;
+        }
 
-    elem.type = DIF_NODE_TYPE_NUM;
-    elem.value.num = 1;
-    treeInsertLeft (tree, tree->rootBranch->leftBranch, elem);
+        diffedTrees[n].rootBranch = treeCreateNode(&diffedTrees[n], diffedTrees[n].rootBranch, nullptr, nullptr,
+                                        {{.opr = DIF_OPR_DIF}, DIF_NODE_TYPE_OPR});
+        if (!diffedTrees[n].rootBranch)
+        {
+            difErr = DIF_ERR_MEM_DYN_ARR;
+            goto ReturnCleanUp;
+        }
 
-    elem.type = DIF_NODE_TYPE_NUM;
-    elem.value.num = 5;
-    treeInsertRight(tree, tree->rootBranch->leftBranch, elem);
+        difErr = difDifTreeDump(dif, &diffedTrees[n]);
+        if (difErr)
+        {
+            goto ReturnCleanUp;
+        }
+
+        diffedTreesValues[n] = difEvalNode_recursive(&diffedTrees[n], diffedTrees[n].rootBranch, true, 0.0);
+    }
+
+    for (int n = 1; n < nGraphs; n++)
+    {
+        for (int k = 0; k <= n; k++)
+        {
+            fprintf(equationsFile, "%lg * x^%d / %d", diffedTreesValues[k], k, factorial(k));
+
+            if (k != n)
+                fprintf(equationsFile, " + ");
+        }
+        fputc('\n', equationsFile);
+    }
+
+
+    ReturnCleanUp:
+
+    for (int i = 0; i < nGraphs; i++)
+        treeDtor(&diffedTrees[i]);
+
+    free(diffedTreesValues);
+    free(diffedTrees);
+    fclose(equationsFile);
+
+    difLatexGenGraph();
+
+    return difErr;
+}
+
+
+static FILE* openLogFile(const char* logFileName)
+{
+    FILE* logFile = fopen(logFileName, "w");
+    if (logFile == nullptr)
+        return nullptr;
+
+    fprintf(logFile, "<pre style=\"background: #000000;color:#000000;\">");
+
+    setvbuf(logFile, NULL, _IONBF, 0);
+
+    return logFile;
 }

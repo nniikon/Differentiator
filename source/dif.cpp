@@ -3,6 +3,9 @@
 #include <assert.h>
 #include <math.h>
 #include "../include/dif_operations.h"
+#include "../include/dif_graphDump.h"
+#include "../treeParser/treeParser.h"
+#include "../include/dif_latexLogs.h"
 
 const char* difGetErrorMsg(DifError err)
 {
@@ -19,13 +22,15 @@ const char* difGetErrorMsg(DifError err)
     #undef DEF_DIF_ERR
 }
 
-DifError difCtor(Dif* dif, FILE* logFile)
+
+DifError difCtor(Dif* dif, FILE* logFile, FILE* outputFile)
 {
-    if (dif == nullptr)
-        return DIF_ERR_NULLPTR_PASSED;
+    if (!dif)
+        DIF_RETURN_LOG_ERROR(DIF_ERR_NULLPTR_PASSED, logFile);
     *dif = {};
 
     dif->logFile = logFile;
+    dif->outputFile = outputFile;
     LOG_FUNC_START(logFile);
 
     LOG_FUNC_END(logFile);
@@ -33,19 +38,28 @@ DifError difCtor(Dif* dif, FILE* logFile)
 }
 
 
-static double difEvalNode_recursive(Tree* tree, TreeNode* node)
+double difEvalNode_recursive(Tree* tree, TreeNode* node, bool hasVars, double varValue)
 {
     LOG_FUNC_START(tree->debugInfo.dumpFile);
+
+    if (hasVars && node->data.type == DIF_NODE_TYPE_VAR)
+    {
+        return varValue;
+    }
 
     if (node->data.type == DIF_NODE_TYPE_NUM)
     {
         LOGF(tree->debugInfo.dumpFile, "returning: %lg\n", node->data.value.num);
         return node->data.value.num;
     }
-    double left  = difEvalNode_recursive(tree, node-> leftBranch);
-    double right = difEvalNode_recursive(tree, node->rightBranch);
 
-    double result = DIF_OPERATIONS[(int)node->data.value.opr].eval(node, left, right);
+    double left = difEvalNode_recursive(tree, node->leftBranch, hasVars, varValue);
+
+    double right = NAN;
+    if (node->rightBranch)
+        right = difEvalNode_recursive(tree, node->rightBranch, hasVars, varValue);
+
+    double result = getDifOpr(node)->eval(node, left, right);
 
     LOGF(tree->debugInfo.dumpFile, "returning: %lg\n", result);
     LOG_FUNC_END(tree->debugInfo.dumpFile);
@@ -60,54 +74,115 @@ DifError difEvalTree(Tree* tree, double* output)
     if (!tree)
         DIF_RETURN_LOG_ERROR(DIF_ERR_NULLPTR_PASSED, tree->debugInfo.dumpFile);
 
-    *output = difEvalNode_recursive(tree ,tree->rootBranch);
+    *output = difEvalNode_recursive(tree, tree->rootBranch, 0, NAN);
 
     if (isnan(*output))
         DIF_RETURN_LOG_WARNING(DIF_ERR_DIVISION_BY_ZERO, tree->debugInfo.dumpFile);
-
 
     LOG_FUNC_END(tree->debugInfo.dumpFile);
     return DIF_ERR_NO;
 }
 
 
-TreeNode* difDifNode_recursive(Tree* tree, TreeNode* node)
+DifError difDumpLatex(Dif* dif, Tree* tree)
 {
-    LOG_FUNC_START(tree->debugInfo.dumpFile); // FIXME SWITCH
-    if (node->data.type == DIF_NODE_TYPE_NUM)
-    {
-        return treeCreateNode(tree, nullptr, nullptr, 
-                              nullptr, {0, DIF_NODE_TYPE_NUM});
-    }
+    DifError err = DIF_ERR_NO;
 
-    if (node->data.type == DIF_NODE_TYPE_VAR)
-    {
-        return treeCreateNode(tree, nullptr, nullptr,
-                              nullptr, {1, DIF_NODE_TYPE_NUM});
-    }
+    err = difGraphDump(dif, tree);
+    if (err) return err;
 
-    LOGF(tree->debugInfo.dumpFile, "The operation is %s\n",
-                                    DIF_OPERATIONS[(int)node->data.value.opr].name);
-    LOG_FUNC_END(tree->debugInfo.dumpFile);
-    return DIF_OPERATIONS[(int)node->data.value.opr].dif(tree, node);
+    difLatexDumpTree(dif, tree);
+
+    return err;
+} 
+
+
+static void difDifNode_recursive(Dif* dif, Tree* tree, TreeNode** node, bool isLoud)
+{
+    LOG_FUNC_START(tree->debugInfo.dumpFile);
+    if (*node == nullptr)
+        return;
+
+    if ((*node)->data.type == DIF_NODE_TYPE_OPR && 
+        (*node)->data.value.opr == DIF_OPR_DIF)
+    {
+
+        switch ((*node)->leftBranch->data.type)
+        {
+            case DIF_NODE_TYPE_NUM:
+                *node = treeCreateNode(tree, nullptr, nullptr, nullptr,
+                                   {{.num = 0.0}, DIF_NODE_TYPE_NUM});
+                break;
+            case DIF_NODE_TYPE_VAR:
+                *node = treeCreateNode(tree, nullptr, nullptr, nullptr,
+                                  {{.num = 1.0}, DIF_NODE_TYPE_NUM});
+                break;
+            case DIF_NODE_TYPE_OPR:
+                LOGF(tree->debugInfo.dumpFile, "%s", "Differentiating an operation\n");
+                *node = getDifOpr((*node)->leftBranch)->dif(tree, (*node)->leftBranch);
+                if (isLoud)
+                {
+                    difSimplify (     tree);
+                    difDumpLatex(dif, tree);
+                }
+
+                difDifNode_recursive(dif, tree, &(*node)->leftBranch,  isLoud);
+                difDifNode_recursive(dif, tree, &(*node)->rightBranch, isLoud);
+                return;
+            default:
+                assert(0);
+                *node =  treeCreateNode(tree, nullptr, nullptr, nullptr,
+                                    {{.num = NAN}, DIF_NODE_TYPE_NUM});
+        }
+    }
+    else
+    {
+        difDifNode_recursive(dif, tree, &(*node)->leftBranch,  isLoud);
+        difDifNode_recursive(dif, tree, &(*node)->rightBranch, isLoud);
+        return;
+    }
 }
 
 
-DifError difDifTree(Tree* tree)
+static DifError difDifTree_internal(Dif* dif, Tree* tree, bool isLoud)
 {
     if (!tree)
         DIF_RETURN_LOG_ERROR(DIF_ERR_NULLPTR_PASSED, nullptr); // QUESTION
 
     LOG_FUNC_START(tree->debugInfo.dumpFile);
 
-    tree->rootBranch = difDifNode_recursive(tree, tree->rootBranch);
+    difDifNode_recursive(dif, tree, &tree->rootBranch, isLoud);
  
     LOG_FUNC_END(tree->debugInfo.dumpFile);
     return DIF_ERR_NO;
 }
 
 
-static bool difSetNodeConst(Tree* tree, TreeNode* node)
+DifError difDifTreeDump(Dif* dif, Tree* tree)
+{
+    DifError err = difDumpLatex(dif, tree);
+    if (err) return err;
+
+    err = difDifTree_internal(dif, tree, true);
+    if (err) return err;
+
+    err = difSimplify(tree);
+    if (err) return err;
+
+    err = difDumpLatex(dif, tree);
+    if (err) return err;
+
+    return err;
+}
+
+
+DifError difDifTree(Dif* dif, Tree* tree)
+{
+    return difDifTree_internal(dif, tree, false);
+}
+
+
+bool difSetNodeConst(TreeNode* node)
 {
     if (!node)
         return true;
@@ -121,8 +196,13 @@ static bool difSetNodeConst(Tree* tree, TreeNode* node)
             node->data.isConst = false;
             break;
         case DIF_NODE_TYPE_OPR:
-            node->data.isConst = difSetNodeConst(tree, node->leftBranch ) && 
-                                 difSetNodeConst(tree, node->rightBranch);
+            if (node->data.value.opr == DIF_OPR_DIF)
+            {
+                node->data.isConst = false;
+                break;
+            }
+            node->data.isConst = difSetNodeConst(node->leftBranch ) && 
+                                 difSetNodeConst(node->rightBranch);
             break;
         default:
             //fprintf(stderr, "MY FUCKING TYPE IS : %d\n", (int)node->data.type);
@@ -139,7 +219,8 @@ static bool difSimplifyConsts_recursive(Tree* tree, TreeNode* node)
         return false;
     if (node->data.isConst && node->data.type == DIF_NODE_TYPE_OPR)
     {
-        node->data.value.num = difEvalNode_recursive(tree, node);
+        LOGF_COLOR(tree->debugInfo.dumpFile, green, "Evaluated %s\n", getDifOpr(node)->name);
+        node->data.value.num = difEvalNode_recursive(tree, node, 0, NAN);
         node->data.type = DIF_NODE_TYPE_NUM;
         node->leftBranch  = nullptr;
         node->rightBranch = nullptr;
@@ -155,7 +236,7 @@ static bool difSimplifyConsts_recursive(Tree* tree, TreeNode* node)
 
 bool difSimplifyConsts(Tree* tree)
 {
-    difSetNodeConst(tree, tree->rootBranch);
+    difSetNodeConst(tree->rootBranch);
     return difSimplifyConsts_recursive(tree, tree->rootBranch);
 }
 
@@ -170,9 +251,12 @@ static bool difSimplifyNeutralElems_recursive(Tree* tree, TreeNode** node)
     if ((*node)->data.type == DIF_NODE_TYPE_OPR)
     {
         TreeNode* oldNode = *node;
-        *node = DIF_OPERATIONS[(int)(*node)->data.value.opr].smp(tree, (*node));
+        *node = getDifOpr(oldNode)->smp(tree, oldNode);
         if (oldNode != *node)
+        {
+            LOGF_COLOR(tree->debugInfo.dumpFile, green, "Simplified %s\n", getDifOpr(oldNode)->name);
             return true;
+        }
     }
 
     return difSimplifyNeutralElems_recursive(tree, &(*node)-> leftBranch) ||
@@ -189,9 +273,16 @@ bool difSimplifyNeutralElems(Tree* tree)
 }
 
 
-void difSimplify(Tree* tree)
+DifError difSimplify(Tree* tree)
 {
     while (difSimplifyNeutralElems(tree) ||
            difSimplifyConsts      (tree))
         ;
+    return DIF_ERR_NO;
+}
+
+
+bool difIsDoubleZero(double num)
+{
+    return fabs(num) < DIF_EPSILON;
 }

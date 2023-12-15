@@ -80,7 +80,7 @@ TreeError treeCtor(Tree* tree, FILE* dumpFile)
 	tree->debugInfo.dumpFile = dumpFile;
 
 
-    int dynArrErr = dynArrCtor(&tree->memBuffer, sizeof(TreeNode));
+    int dynArrErr = memDynArrCtor(&tree->memBuffer, sizeof(TreeNode));
     if (dynArrErr == -1)
     {
         DUMP_RETURN_ERROR(TREE_ERROR_BAD_MEM_ALLOC);
@@ -102,7 +102,7 @@ TreeError treeDtor(Tree* tree)
 {
     DUMP_FUNC_START(tree->debugInfo.dumpFile);
 
-    dynArrDtor(&tree->memBuffer);
+    memDynArrDtor(&tree->memBuffer);
     memset(tree, 0, sizeof(Tree));
 
     DUMP_FUNC_SUCCESS(tree->debugInfo.dumpFile);
@@ -112,7 +112,7 @@ TreeError treeDtor(Tree* tree)
 
 inline static TreeNode* treeCalloc(Tree* tree)
 {
-    return (TreeNode*) dynArrCalloc(&tree->memBuffer);
+    return (TreeNode*) memDynArrCalloc(&tree->memBuffer);
 }
 
 

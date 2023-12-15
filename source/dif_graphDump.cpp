@@ -45,7 +45,7 @@ static void akinatorPrintNodes(Dif* dif, TreeNode* node, FILE* dotFile)
     LOG_FUNC_START(dif->logFile);
     const char* color = nullptr;
 
-    const int valueBufferSize = 15;
+    const int valueBufferSize = 32;
     char valueStr[valueBufferSize] = {};
     switch (node->data.type)
     {
@@ -56,25 +56,25 @@ static void akinatorPrintNodes(Dif* dif, TreeNode* node, FILE* dotFile)
 
         case DIF_NODE_TYPE_OPR:
             color = DIF_OPR_COLOR;
-            snprintf(valueStr, valueBufferSize, "%s", DIF_OPERATIONS[(int)node->data.value.opr].name);
+            snprintf(valueStr, valueBufferSize, "%s", getDifOpr(node)->name);
             break;
 
         case DIF_NODE_TYPE_VAR:
             color = DIF_VAR_COLOR;
-            snprintf(valueStr, valueBufferSize, "%s", node->data.value.var->name);
+            snprintf(valueStr, valueBufferSize, "%.*s", node->data.value.var->length,
+                                                        node->data.value.var->name);
             break;
         default: assert(0);
     };
     // QUESTION: FIXME: cringe?
 
-    log("\"%p\" [shape = Mrecord, style = filled, fillcolor = \"%s\", color = \"%s\", ", 
+    log("\"%p\" [shape = circle, style = filled, fillcolor = \"%s\", color = \"%s\", ", 
                     node, color, DIF_SCD_COLOR);
-    log("label = \"{adr: %p | p: %p | {l: %p | r %p} | {isConst %d} | ",
-                    node, node->parentBranch, node->leftBranch, node->rightBranch, node->data.isConst);
+    log("label = \"");
 
     log("%s", valueStr);
 
-    log("}\"];\n");
+    log("\"];\n");
 
     if (node->leftBranch != nullptr)
     {

@@ -38,13 +38,17 @@ void getCurrentTimeStr(char* str, size_t bufferSize);
     #define LOGF_COLOR(file, color, str, ...)                                    \
     do                                                                           \
     {                                                                            \
-        const int bufferSize_log = 32;                                           \
+        const int timeBufferSize_log = 10;                                       \
+        const int     bufferSize_log = 39;                                       \
         if (file != NULL)                                                        \
         {                                                                        \
-            char buffer_log[bufferSize_log] = {};                                \
-            getCurrentTimeStr(buffer_log, bufferSize_log);                       \
-            LOG_COLOR(file, lightgreen, "[%s]{%s(%-3d)}:",                       \
-                                buffer_log, __FILE__, __LINE__);                 \
+            char     buffer_log[    bufferSize_log] = {};                        \
+            char timeBuffer_log[timeBufferSize_log] = {};                        \
+            getCurrentTimeStr(timeBuffer_log, bufferSize_log);                   \
+            snprintf(buffer_log, bufferSize_log, "[%s]{%s(%-3d)}: ",             \
+                            timeBuffer_log, __FILE__, __LINE__);                 \
+            LOG_COLOR(file, lightgreen, "%-*s",                                  \
+                                bufferSize_log, buffer_log);                     \
             LOG_COLOR(file, color, str, __VA_ARGS__);                            \
             LOG_END(file);                                                       \
         }                                                                        \

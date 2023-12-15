@@ -6,8 +6,9 @@
 #include "dif_cfg.h"
 
 struct Dif
-{
+{ 
     FILE* logFile;
+    FILE* outputFile;
     int dumpIndex;
 };
 
@@ -18,18 +19,24 @@ enum DifError
     #undef  DEF_DIF_ERR
 };
 
-DifError difCtor(Dif* dif, FILE* logFile);
+DifError difCtor(Dif* dif, FILE* logFile, FILE* outputFile);
 
 const char* difGetErrorMsg(DifError err);
 
 DifError difEvalTree(Tree* tree, double* output);
-DifError difDifTree (Tree* tree);
+double difEvalNode_recursive(Tree* tree, TreeNode* node, bool hasVar, double varValue);
 
-TreeNode* difDifNode_recursive(Tree* tree, TreeNode* node);
+DifError difDifTree    (Dif* dif, Tree* tree);
+DifError difDifTreeDump(Dif* dif, Tree* tree);
+DifError difDumpLatex  (Dif* dif, Tree* tree);
 
 bool difSimplifyConsts      (Tree* tree);
 bool difSimplifyNeutralElems(Tree* tree);
-void difSimplify            (Tree* tree);
+DifError difSimplify        (Tree* tree);
+
+bool difIsDoubleZero(double num);
+
+bool difSetNodeConst(TreeNode* node);
 
 #define DIF_RETURN_LOG(err, logFile)                                          \
     do {                                                                      \

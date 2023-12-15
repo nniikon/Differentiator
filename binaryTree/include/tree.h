@@ -25,7 +25,7 @@ typedef struct
 typedef struct
 {
     TreeNode* rootBranch;
-    DynArr memBuffer;
+    MemDynArr memBuffer;
     unsigned int size;
 	TreeDebugInfo debugInfo;
 } Tree;

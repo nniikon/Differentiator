@@ -3,8 +3,6 @@
 
 #include "../binaryTree/include/tree.h"
 
-void parserPutTreeToFile(Tree* tree, FILE* file);
-
 enum ParserError
 {
     #define DEF_PARSER_ERR(err, msg) PARSER_ERR_ ## err,
@@ -12,8 +10,27 @@ enum ParserError
     #undef  DEF_PARSER_ERR
 };
 
-const char* parserGetErrMsg(ParserError err);
+struct Token
+{
+    DifNode node;
+    char bracket;
+};
 
-ParserError parserLoadTreeFromFile(Tree* tree, FILE* file, FILE* logFile);
+struct Parser
+{
+    MemDynArr variables;
+    MemStack  tokens;
+
+    FILE* logFile;
+    ParserError error;
+};
+
+void parserPutTreeToFile(Tree* tree, FILE* file);
+const char* parserGetErrMsg(ParserError err);
+void parserPutNodeNameToFile(TreeNode* node, FILE* file);
+
+ParserError parserLoadTreeFromFile(Parser* parser, Tree* tree, char* str);
+ParserError parserCtor            (Parser* parser, FILE* logFile);
+ParserError parserDtor            (Parser* parser);
 
 #endif // TREE_PARSER_H_

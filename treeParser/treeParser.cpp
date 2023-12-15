@@ -3,12 +3,10 @@
 #include <ctype.h>
 #include <assert.h>
 #include <stdlib.h>
-#include "tree_stack_cfg.h"
+#include <ctype.h>
 #include "../include/dif_operations.h"
 #include "../common/logs/logs.h"
 #include "../common/fileToBuffer/fileToBuffer.h"
-#include "../common/stack/stack.h"
-#include "../include/dif_hash.h"
 
 
 const char* parserGetErrMsg(ParserError err)
@@ -28,34 +26,71 @@ const char* parserGetErrMsg(ParserError err)
 
 
 #define PARSER_LOG_RETURN_ERR(logFile, err)                                    \
-    if (err)                                                                   \
+    if ((err) != PARSER_ERR_NO)                                                \
         LOGF_ERR(logFile, "%s\n", parserGetErrMsg(err));                       \
+
+
+ParserError parserCtor(Parser* parser, FILE* logFile)
+{
+    if (!logFile || !parser)
+        PARSER_LOG_RETURN_ERR(logFile, PARSER_ERR_NULLPTR_PASSED);
+
+    LOG_FUNC_START(logFile);
+
+    parser->logFile = logFile;
+
+    if (memDynArrCtor(&parser->variables, sizeof(DifVar)))
+    {
+        PARSER_LOG_RETURN_ERR(logFile, PARSER_ERR_MEM_DYN_ARR);
+    }
+
+    if (memStackCtor(&parser->tokens, sizeof(Token)))
+    {
+        memDynArrDtor(&parser->variables);
+        PARSER_LOG_RETURN_ERR(logFile, PARSER_ERR_MEM_STACK);
+    }
+
+    LOG_FUNC_END(logFile);
+    return PARSER_ERR_NO;
+}
+
+
+ParserError parserDtor(Parser* parser)
+{
+    if (!parser)
+        PARSER_LOG_RETURN_ERR(nullptr, PARSER_ERR_NULLPTR_PASSED);
+    
+    LOG_FUNC_START(parser->logFile);
+
+    memDynArrDtor(&parser->variables);
+    memStackDtor (&parser->tokens);
+
+    LOG_FUNC_END(parser->logFile);
+    return PARSER_ERR_NO;
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// LOAD /////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-
-static bool isDelim(const char del)
+static bool isVarDelim(const char del)
 {
-    if (isdigit(del) || 
-        isspace(del) || 
-        del == '('   ||
-        del == ')'      )
-    {
-        return true;
-    }
-    return false;
+    if (isalnum(del))
+        return false;
+
+    return true;
 }
 
 
-static int getWordSize(const char* input)
+static int getVarSize(const char* str)
 {
-    int  i = 0;
-    for (i = 0; input[i]; i++)
+    assert(str);
+
+    int i = 0;
+    for (; str[i]; i++)
     {
-        if (isDelim(input[i]))
+        if (isVarDelim(str[i]))
             return i;
     }
     return i;
@@ -76,45 +111,55 @@ static const char* skipSpaces(const char* input)
 }
 
 
-static DifOprType getOprType(const char* name, int size)
+static DifOprType getOprType(const char* name, int* size)
 {
-    long hash = difGetOprHashBySize(name, size);
-
-    for (size_t type = 0; type < sizeof(DIF_OPERATIONS) / sizeof(DIF_OPERATIONS[0]); type++)
+    for (size_t type = 0; type < DIF_N_OPERATIONS; type++)
     {
-        if (hash == DIF_OPERATIONS[type].hash)
+        if (strncmp(name, DIF_OPERATIONS[type].name, DIF_OPERATIONS[type].size) == 0)
+        {
+            *size = DIF_OPERATIONS[type].size;
             return (DifOprType) type;
+        }
     }
-    return DIF_OPR_ERR;
+    return DIF_OPR_INV;
 }
 
 
-static void printTokens(Stack* stk, FILE* logFile)
+static void printTokens(MemStack* tokenStk, FILE* logFile)
 {
     LOG_START_COLOR(logFile, blue);
+
+    Token* tokens = (Token*) tokenStk->data;
+
     fprintf(logFile, "\t Tokens dump: \n \t");
-    for (int i = 0; i < stk->size; i++)
+    fprintf(logFile, "| ");
+    for (unsigned int i = 0; i < tokenStk->size; i++)
     {
-        if (stk->data[i].bracket)
+        if (tokens[i].bracket)
         {
-            fprintf(logFile, "%c ", stk->data[i].bracket);
+            fprintf(logFile, "%c | ", tokens[i].bracket);
             continue;
         }
-        switch (stk->data[i].node.type)
+
+        switch (tokens[i].node.type)
         {
             case DIF_NODE_TYPE_OPR:
-                fprintf(logFile, "%s ", DIF_OPERATIONS[(int)stk->data[i].node.value.opr].name);
+                fprintf(logFile, "%s | ", DIF_OPERATIONS[(int)tokens[i].node.value.opr].name);
                 break;
             case DIF_NODE_TYPE_NUM:
-                fprintf(logFile, "%lg ", stk->data[i].node.value.num);
+                fprintf(logFile, "%lg | ", tokens[i].node.value.num);
                 break;
             case DIF_NODE_TYPE_VAR:
+                fprintf(logFile, "%.*s | ", tokens[i].node.value.var->length,
+                                            tokens[i].node.value.var->name);
+                break;
             default:
-                assert(0); // Is yet to be added... 
+                assert(0);
                 break;
         }
     }
     fputc('\n', logFile);
+
     LOG_END(logFile);
 }
 
@@ -123,27 +168,15 @@ static bool tryOprToken(const char* str, Token* token, int* size, FILE* logFile)
 {
     LOGF(logFile, "Trying to find an operation: %s\n", str);
 
-    // K O C T bI JL b FIXME
-    // First try for 1-symbol operations
-    *size = 1;
-    DifOprType oprType = getOprType(str, *size);
-    if (oprType == DIF_OPR_ERR)
-    {
-        *size = getWordSize(str);
-        LOGF(logFile, "Operation length: (%d)\n", *size); // FIXME strcmp 
-        oprType = getOprType(str, *size);
-    }
-
     token->node.type = DIF_NODE_TYPE_OPR;
-    token->node.value.opr = getOprType(str, *size);
+    token->node.value.opr = getOprType(str, size);
 
-    if (token->node.value.opr != DIF_OPR_ERR)
+    if (token->node.value.opr != DIF_OPR_INV)
     {
         LOGF_COLOR(logFile, cyan, "Detected operation: %s\n",
                 DIF_OPERATIONS[(int)token->node.value.opr].name);
         return true;
     }
-
     return false;
 }
 
@@ -169,19 +202,67 @@ static bool tryDigitToken(const char* str, Token* token, int* size, FILE* logFil
 }
 
 
-static bool tryBracketToken(const char* str, Token* token, int* size, FILE* logFile)
+static bool tryBracketToken(const char* str, Token* tokens, int* size, FILE* logFile)
 {
     if (str[0] != '(' && str[0] != ')')
         return false;
 
     LOGF_COLOR(logFile, cyan, "Detected bracket: %c\n", str[0]);
     *size = 1;
-    token->bracket = str[0];
+    tokens->bracket = str[0];
     return true;
 }
 
 
-static ParserError parseStrToTokens(Stack* stk, const char* str, FILE* logFile)
+static bool tryVarToken(const char* str, Token* tokens, int* size, FILE* logFile, MemDynArr* vars)
+{
+    assert(vars);
+    assert(str);
+    LOGF(logFile, "Trying to get a variable: %s\n", str);
+
+    DifVar* var = nullptr;
+    int varLength = getVarSize(str);
+    LOGF_COLOR(logFile, cyan, "Detected varible: %.*s\n", varLength, str);
+    LOGF_COLOR(logFile, cyan, "Variable size: %d\n", varLength);
+
+    bool isVarFound = false;
+    while((var = (DifVar*) memDynArrGetElem(vars)) != nullptr)
+    {
+        if (var->length != varLength)
+            continue;
+
+        if (strncmp(var->name, str, varLength) == 0)
+        {
+            isVarFound = true;
+            break;
+        }
+    }
+    memDynArrGetElemReset(vars);
+
+    // If the variable hasn't been found before, create it.
+    if (!isVarFound)
+    {
+        var = (DifVar*) memDynArrCalloc(vars);
+        if (!var)
+        {
+            LOGF_ERR(logFile, "%s\n", parserGetErrMsg(PARSER_ERR_MEM_DYN_ARR));
+            // FIXME: error handling
+        }
+        LOGF_COLOR(logFile, cyan, "%s\n", "Created a new varible");
+        var->name = str;
+        var->length = varLength;
+    }
+
+    tokens->node.type = DIF_NODE_TYPE_VAR;
+    tokens->node.value.var = var;
+
+    *size = varLength;
+
+    return true;
+}
+
+
+static ParserError parseStrToTokens(MemStack* tokens, MemDynArr* vars, const char* str, FILE* logFile)
 {
     LOG_FUNC_START(logFile);
 
@@ -195,133 +276,66 @@ static ParserError parseStrToTokens(Stack* stk, const char* str, FILE* logFile)
 
         int tokenSize = 0;
 
-        if (!tryBracketToken(str, &newToken, &tokenSize, logFile) &&
-            !tryDigitToken  (str, &newToken, &tokenSize, logFile) && 
-            !tryOprToken    (str, &newToken, &tokenSize, logFile)    )
+        if (!tryBracketToken(str, &newToken, &tokenSize, logFile      ) &&
+            !tryDigitToken  (str, &newToken, &tokenSize, logFile      ) && 
+            !tryOprToken    (str, &newToken, &tokenSize, logFile      ) &&
+            !tryVarToken    (str, &newToken, &tokenSize, logFile, vars)    )
         {
             LOGF_WRN(logFile, "Syntax error: %s\n", str);
         }
 
-
         str += tokenSize;
-        stackPush(stk, newToken);
+        memStackPush(tokens, &newToken);
     }
+
+    Token endToken = {};
+
+    endToken.node.type = DIF_NODE_TYPE_OPR;
+    endToken.node.value.opr = DIF_OPR_END;
+    memStackPush(tokens, &endToken);
+
     return PARSER_ERR_NO;
 }
 
 
+static TreeNode* getFunctionLikeOprs(Tree* tree, const Token* tokens, size_t* pos, FILE* logFile);
 
+static TreeNode* getBracketsOprs(Tree* tree, const Token* tokens, size_t* pos, FILE* logFile);
 
-static TreeNode* getBracketsOprs(Tree* tree, const Stack* stk, size_t* pos, FILE* logFile);
-
-// static TreeNode* getFirstOrderOprs(Tree* tree, const Stack* stk, size_t* pos, FILE* logFile)
-// {
-//     LOG_FUNC_START(logFile);
-
-//     TreeNode* leftNode = getBracketsOprs(tree, stk, pos, logFile);
-
-//     DifNode node = stk->data[*pos].node;
-
-//     LOGF(logFile, "current oper order: %d\n", DIF_OPERATIONS[(int)node.value.opr].order);
-
-//     while (!stk->data[*pos].bracket && DIF_OPERATIONS[(int)node.value.opr].order == 1) // ^
-//     {
-//         LOGF(logFile, "%s\n", "Found first order operation");
-//         LOGF_COLOR(logFile, green, "The operations is %s\n", DIF_OPERATIONS[(int)node.value.opr].name);
-//         (*pos)++;
-//         TreeNode* rightNode = getBracketsOprs(tree, stk, pos, logFile);
-
-//         leftNode = treeCreateNode(tree, leftNode, rightNode, nullptr, 
-//                                  {{.opr = node.value.opr}, DIF_NODE_TYPE_OPR});
-//     }
-
-//     LOG_FUNC_END(logFile);
-//     return leftNode;
-// }
-
-
-// static TreeNode* getThirdOrderOprs(Tree* tree, const Stack* stk, size_t* pos, FILE* logFile)
-// {
-//     LOG_FUNC_START(logFile);
-
-//     TreeNode* leftNode = getFirstOrderOprs(tree, stk, pos, logFile);
-
-//     DifNode node = stk->data[*pos].node;
-
-//     LOGF(logFile, "current oper order: %d\n", DIF_OPERATIONS[(int)node.value.opr].order);
-
-//     while (!stk->data[*pos].bracket && DIF_OPERATIONS[(int)node.value.opr].order == 3) // * or /
-//     {
-//         LOGF(logFile, "%s\n", "Found third order operation");
-//         LOGF_COLOR(logFile, green, "The operations is %s\n", DIF_OPERATIONS[(int)node.value.opr].name);
-//         (*pos)++;
-//         TreeNode* rightNode = getFirstOrderOprs(tree, stk, pos, logFile);
-
-//         leftNode = treeCreateNode(tree, leftNode, rightNode, nullptr, 
-//                                  {{.opr = node.value.opr}, DIF_NODE_TYPE_OPR});
-//     }
-
-//     LOG_FUNC_END(logFile);
-//     return leftNode;
-// }
-
-
-// static TreeNode* getForthOrderOprs(Tree* tree, const Stack* stk, size_t* pos, FILE* logFile)
-// {
-//     LOG_FUNC_START(logFile);
-
-//     TreeNode* leftNode = getThirdOrderOprs(tree, stk, pos, logFile);
-
-//     DifNode node = stk->data[*pos].node;
-
-//     LOGF(logFile, "current oper order: %d\n", DIF_OPERATIONS[(int)node.value.opr].order);
-
-//     while (!stk->data[*pos].bracket && DIF_OPERATIONS[(int)node.value.opr].order == 4) // + or -
-//     {
-//         LOGF(logFile, "%s\n", "Found forth order operations");
-//         LOGF_COLOR(logFile, green, "The operations is %s\n", DIF_OPERATIONS[(int)node.value.opr].name);
-//         (*pos)++;
-//         TreeNode* rightNode = getThirdOrderOprs(tree, stk, pos, logFile);
-
-//         leftNode = treeCreateNode(tree, leftNode, rightNode, nullptr, 
-//                                  {{.opr = node.value.opr}, DIF_NODE_TYPE_OPR});
-//     }
-
-//     LOG_FUNC_END(logFile);
-//     return leftNode;
-// }
-
-
-static TreeNode* getIndexOrderOprs(int order, Tree* tree, const Stack* stk, size_t* pos, FILE* logFile)
+static TreeNode* getIndexOrderOprs(int order, Tree* tree, const Token* tokens, size_t* pos, FILE* logFile)
 {
-    if (*pos > stk->size)
-        return nullptr;
     LOG_FUNC_START(logFile);
 
     TreeNode* leftNode = nullptr;
     if (order == 0)
-        leftNode = getBracketsOprs(tree, stk, pos, logFile);
+        leftNode = getBracketsOprs(tree, tokens, pos, logFile);
     else
-        leftNode = getIndexOrderOprs(order - 1, tree, stk, pos, logFile);
+        leftNode = getIndexOrderOprs(order - 1, tree, tokens, pos, logFile);
 
-    while (!stk->data[*pos].bracket && DIF_OPERATIONS[(int)stk->data[*pos].node.value.opr].order == order)
+    while (!tokens[*pos].bracket && DIF_OPERATIONS[(int)tokens[*pos].node.value.opr].order == order) // FIXME
     {
         LOGF      (logFile,        "Found %d order operations at position %zu\n", order, *pos);
-        LOGF_COLOR(logFile, green, "The operations is %s\n", DIF_OPERATIONS[(int)stk->data[*pos].node.value.opr].name);
-        LOGF_COLOR(logFile, green, "Operation id: %d\n", (int)stk->data[*pos].node.value.opr);
+        LOGF_COLOR(logFile, green, "The operations is %s\n", DIF_OPERATIONS[(int)tokens[*pos].node.value.opr].name);
+        LOGF_COLOR(logFile, green, "Operation id: %d\n", (int)tokens[*pos].node.value.opr);
 
         size_t oldPos = *pos;
         (*pos)++;
 
         TreeNode* rightNode = nullptr;
- 
-        if (order == 0)
-            rightNode = getBracketsOprs(tree, stk, pos, logFile);
+        if (DIF_OPERATIONS[(int)tokens[oldPos].node.value.opr].isBinary)
+        {
+            if (order == 0)
+                rightNode = getBracketsOprs(tree, tokens, pos, logFile);
+            else
+                rightNode = getIndexOrderOprs(order - 1, tree, tokens, pos, logFile);
+        }
         else
-            rightNode = getIndexOrderOprs(order - 1, tree, stk, pos, logFile);
+        {
+            assert(0); // is yet to be implemented...
+        }
 
         leftNode = treeCreateNode(tree, leftNode, rightNode, nullptr, 
-                                 {{.opr = stk->data[oldPos].node.value.opr}, DIF_NODE_TYPE_OPR});
+                                 {{.opr = tokens[oldPos].node.value.opr}, DIF_NODE_TYPE_OPR});
     }
 
     LOG_FUNC_END(logFile);
@@ -329,20 +343,44 @@ static TreeNode* getIndexOrderOprs(int order, Tree* tree, const Stack* stk, size
 }
 
 
-static TreeNode* getBracketsOprs(Tree* tree, const Stack* stk, size_t* pos, FILE* logFile)
+static TreeNode* getFunctionLikeOprs(Tree* tree, const Token* tokens, size_t* pos, FILE* logFile)
+{
+    size_t oldPos = *pos;
+    (*pos)++;
+    if (tokens[*pos].bracket != '(')
+    {
+        LOGF_WRN(logFile, "%s\n", "syntax error"); // FIXME
+    }
+    (*pos)++;
+
+    TreeNode* leftNode = getIndexOrderOprs(4, tree, tokens, pos, logFile);
+    TreeNode* node = treeCreateNode(tree, leftNode, nullptr, nullptr, 
+                                {{.opr = tokens[oldPos].node.value.opr}, DIF_NODE_TYPE_OPR});
+
+    if (tokens[*pos].bracket != ')')
+    {
+        LOGF_WRN(logFile, "%s\n", "syntax error"); // FIXME
+    }
+    (*pos)++;
+
+    return node;
+}
+
+
+static TreeNode* getBracketsOprs(Tree* tree, const Token* tokens, size_t* pos, FILE* logFile)
 {
     LOG_FUNC_START(logFile);
 
     TreeNode* node = nullptr;
 
-    if (stk->data[*pos].bracket == '(')
+    if (tokens[*pos].bracket == '(')
     {
         (*pos)++;
 
         LOGF_COLOR(logFile, green, "%s\n", "Going inside the bracket!");
-        node = getIndexOrderOprs(4, tree, stk, pos, logFile);
+        node = getIndexOrderOprs(4, tree, tokens, pos, logFile); // 4 eto mem ya uberu
         LOGF_COLOR(logFile, green, "%s\n", "Out of the bracket!");
-        if (stk->data[*pos].bracket != ')')
+        if (tokens[*pos].bracket != ')')
         {
             LOGF_WRN(logFile, "Syntax error at pos %zu\n", *pos);
             return nullptr;
@@ -350,10 +388,22 @@ static TreeNode* getBracketsOprs(Tree* tree, const Stack* stk, size_t* pos, FILE
 
         (*pos)++;
     }
+    else if (tokens[*pos].node.type == DIF_NODE_TYPE_OPR &&
+             DIF_OPERATIONS[(int)tokens[*pos].node.value.opr].isFunctionLike)
+    {
+        node = getFunctionLikeOprs(tree, tokens, pos, logFile);
+    }
+    else if (tokens[*pos].node.type == DIF_NODE_TYPE_VAR)
+    {
+        node = treeCreateNode(tree, nullptr, nullptr, nullptr, tokens[*pos].node);
+        LOGF_COLOR(logFile, green, "I got a varibale: %.*s\n", tokens[*pos].node.value.var->length,
+                                                               tokens[*pos].node.value.var->name);
+        (*pos)++;
+    }
     else
     {
-        node = treeCreateNode(tree, nullptr, nullptr, nullptr, stk->data[*pos].node);
-        LOGF_COLOR(logFile, green,  "I got a number: %lg\n", stk->data[*pos].node.value.num);
+        node = treeCreateNode(tree, nullptr, nullptr, nullptr, tokens[*pos].node);
+        LOGF_COLOR(logFile, green,  "I got a number: %lg\n",   tokens[*pos].node.value.num);
         (*pos)++;
     }
 
@@ -362,53 +412,36 @@ static TreeNode* getBracketsOprs(Tree* tree, const Stack* stk, size_t* pos, FILE
 }
 
 
-ParserError parserLoadTreeFromFile(Tree* tree, FILE* file, FILE* logFile)
+static ParserError parseTokenToTree(Tree* tree, Token* tokens, FILE* logFile)
 {
-    LOG_FUNC_START(logFile);
-
-    Stack tokens = {};
-    ParserError prsErr = PARSER_ERR_NO;
-    StackError  stkErr = STACK_NO_ERROR; // cringe
     size_t pos = 0;
-    TreeNode* node = nullptr;
-
-    size_t size = 0;
-    char* input = putFileToBuffer(&size, file);
-    if (!input)
+    tree->rootBranch = getIndexOrderOprs(4, tree, tokens, &pos, logFile);
+    if (tokens[pos].node.type != DIF_NODE_TYPE_OPR || 
+        tokens[pos].node.value.opr != DIF_OPR_END)
     {
-        prsErr = PARSER_ERR_FILE_TO_BUFFER;
-        goto FileToBufferFailure;
+        LOGF_WRN(logFile, "%s\n", "Syntax error"); // FIXME: add syntax errors
     }
-    LOGF(logFile, "INPUT: (%s)\n", input);
+    LOGF_COLOR(logFile, green, "Parsing tokens success: %zu\n", pos);
+
+    return PARSER_ERR_NO;
+}
 
 
-    stkErr = stackInit(&tokens);
-    if (stkErr)
-    {
-        prsErr = PARSER_ERR_STACK;
-        goto StackInitFailure;
-    }
+ParserError parserLoadTreeFromFile(Parser* parser, Tree* tree, char* str)
+{
+    LOG_FUNC_START(parser->logFile);
 
-    prsErr = parseStrToTokens(&tokens, input, logFile);
+    ParserError prsErr = parseStrToTokens(&parser->tokens, &parser->variables,
+                                                       str, parser->logFile);
     if (prsErr)
-    {
-        goto ParseStrToTokensFailure;
-    }
+        PARSER_LOG_RETURN_ERR(parser->logFile, prsErr);
 
+    printTokens(&parser->tokens, parser->logFile);
 
-    printTokens(&tokens, logFile);
-    node = getIndexOrderOprs(4, tree, &tokens, &pos, logFile);
-    printTokens(&tokens, logFile);
-    tree->rootBranch = node;
-    LOGF_COLOR(logFile, green, "Pos: %zu, size: %d\n", pos, tokens.size);
+    parseTokenToTree(tree, (Token*) parser->tokens.data, parser->logFile);
 
-    LOG_FUNC_END(logFile);
-    ParseStrToTokensFailure:
-    stackDtor(&tokens); 
-    StackInitFailure:
-    free(input);
-    FileToBufferFailure:
-    PARSER_LOG_RETURN_ERR(logFile, prsErr);
+    LOG_FUNC_END(parser->logFile);
+
     return prsErr;
 }
 
@@ -417,56 +450,75 @@ ParserError parserLoadTreeFromFile(Tree* tree, FILE* file, FILE* logFile)
 //////////////////////////////////// SAVE /////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-static void putNodeToFile_recursive(Tree* tree, TreeNode* node, FILE* file);
-static void putNodeNameToFile      (Tree* tree, TreeNode* node, FILE* file);
 
-static void putNodeNameToFile(Tree* tree, TreeNode* node, FILE* file)
+static void parserPutNodeToFile_recursive(TreeNode* node, FILE* file, int prevOprOrder);
+
+
+void parserPutNodeNameToFile(TreeNode* node, FILE* file)
 {
+    assert(node);
+    assert(file);
+
     switch(node->data.type)
     {
         case DIF_NODE_TYPE_NUM:
             fprintf(file, "%lg", node->data.value.num);
             break;
         case DIF_NODE_TYPE_OPR:
-            fprintf(file, "%s", DIF_OPERATIONS[(int)node->data.value.opr].name);
+            fprintf(file, "%s", getDifOpr(node)->name);
             break;
         case DIF_NODE_TYPE_VAR:
-            fprintf(file, "%s", node->data.value.var->name); 
+            fprintf(file, "%.*s", node->data.value.var->length, 
+                                  node->data.value.var->name   ); 
             break;
         default:
-            LOGF_ERR(tree->debugInfo.dumpFile, "%s\n", "Unknown node type");
             assert(0);
             return;
     }
 }
 
 
-static void putNodeToFile_recursive(Tree* tree, TreeNode* node, FILE* file)
+static void parserPutNodeToFile_recursive(TreeNode* node, FILE* file, int prevOprOrder)
 {
+    assert(file);
 
     if (!node)
         return;
 
-    if (node->data.type == DIF_NODE_TYPE_OPR)
+    if (node->data.type != DIF_NODE_TYPE_OPR)
+    {
+        parserPutNodeToFile_recursive(node-> leftBranch, file, prevOprOrder);
+        parserPutNodeNameToFile      (node,              file              );
+        parserPutNodeToFile_recursive(node->rightBranch, file, prevOprOrder);
+        return;
+    }
+    int curOprOrder = getDifOpr(node)->order;
+
+    if (node->data.type == DIF_NODE_TYPE_OPR && getDifOpr(node)->isFunctionLike)
+    {
+        parserPutNodeNameToFile(node, file);
+        fprintf(file, "(");
+        parserPutNodeToFile_recursive(node-> leftBranch, file, curOprOrder);
+        fprintf(file, ")");
+        return;
+    }
+
+    if (node->data.type == DIF_NODE_TYPE_OPR && curOprOrder > prevOprOrder)
         fprintf(file, "(");
 
-    putNodeToFile_recursive(tree, node->leftBranch , file);
-    putNodeNameToFile      (tree, node             , file);
-    putNodeToFile_recursive(tree, node->rightBranch, file);
+    parserPutNodeToFile_recursive(node-> leftBranch, file, curOprOrder);
+    parserPutNodeNameToFile      (node,              file             );
+    parserPutNodeToFile_recursive(node->rightBranch, file, curOprOrder);
 
-    if (node->data.type == DIF_NODE_TYPE_OPR)
+    if (node->data.type == DIF_NODE_TYPE_OPR && curOprOrder > prevOprOrder)
         fprintf(file, ")");
 }
 
 
 void parserPutTreeToFile(Tree* tree, FILE* file)
 {
-    LOG_FUNC_START(tree->debugInfo.dumpFile);
     assert(tree);
-    if (!tree)
+    if (!tree || !file)
         return;
-    
-    putNodeToFile_recursive(tree, tree->rootBranch, file);
-
-    LOG_FUNC_END(tree->debugInfo.dumpFile);
+    parserPutNodeToFile_recursive(tree->rootBranch, file, __INT_MAX__);
 }
